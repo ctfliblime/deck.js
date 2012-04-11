@@ -37,41 +37,156 @@
   <h1>Converting from CGI to PSGI</h1>
 </section>
 
-<section class="slide" id="how-to-overview">
-  <h2>How to Make a Deck</h2>
-  <ol>
+<section class="slide" id="why-would-i">
+  <h2>Why would I want to do that?</h2>
+  <ul>
     <li>
-      <h3>Write Slides</h3>
-      <p>Slide content is simple&nbsp;HTML.</p>
+      <h3>Enables use of thinner webservers</h3>
+      <p>Nginx does not support CGI natively.</p>
     </li>
     <li>
-      <h3>Choose Themes</h3>
-      <p>One for slide styles and one for deck&nbsp;transitions.</p>
+      <h3>Combine applications</h3>
+      <p>Tie legacy CGI applications together or combine with PSGI apps.</p>
     </li>
     <li>
-      <h3>Include Extensions</h3>
-      <p>Add extra functionality to your deck, or leave it stripped&nbsp;down.</p>
+      <h3>Speed!</h3>
+      <p>Startup penalty is incurred only once rather than upon each request.</p>
     </li>
-  </ol>
+  </ul>
 </section>
 
-<section class="slide" id="markup">
-  <h2>The Markup</h2>
-  <p>Slides are just HTML elements with a class of <code>slide</code>.</p>
-  <pre><code>&lt;section class=&quot;slide&quot;&gt;
-   &lt;h2&gt;How to Make a Deck&lt;/h2&gt;
-   &lt;ol&gt;
-      &lt;li&gt;
-         &lt;h3&gt;Write Slides&lt;/h3&gt;
-         &lt;p&gt;Slide content is simple HTML.&lt;/p&gt;
-      &lt;/li&gt;
-      &lt;li&gt;
-         &lt;h3&gt;Choose Themes&lt;/h3&gt;
-         &lt;p&gt;One for slide styles and one for deck transitions.&lt;/p&gt;
-      &lt;/li&gt;
-      &hellip;
-   &lt;/ol&gt;
-&lt;/section&gt;</code></pre>
+<section class="slide" id="pieces">
+  <h2>Pieces of the puzzle</h2>
+  <ul>
+    <li>
+      <h3>CGI::Compile</h3>
+    </li>
+  </ul>
+</section>
+
+<section class="slide" id="cgi-compile">
+  <h2>CGI::Compile</h2>
+  <p>Loads contents of a Perl script into an eval()ed subroutine. Hand it a filename; get back a coderef.</p>
+  <p><code><pre>
+my $cgi = CGI::Compile-&gt;compile('./my-script.pl');<br/>
+$cgi-&gt;();
+</pre></code></p>
+</section>
+
+<section class="slide" id="pieces2">
+  <h2>Pieces of the puzzle</h2>
+  <ul>
+    <li>
+      <h3>CGI::Compile</h3>
+    </li>
+    <li>
+      <h3>CGI::Emulate::PSGI</h3>
+    </li>
+  </ul>
+</section>
+
+<section class="slide" id="cgi-emulate-psgi">
+  <h2>CGI::Emulate::PSGI</h2>
+  <p>Converts the PSGI input environment ($env) into a CGI-compliant one (%ENV, &lt;STDIN&gt;, etc.). Hand it a coderef; get back a PSGI app.</p>
+  <p><code><pre>
+my $cgi = CGI::Compile-&gt;compile('./my-script.pl');
+my $app = CGI::Emulate::PSGI-&gt;handler($cgi);
+builder {
+    mount '/' => $app;
+};
+</pre></code></p>
+</section>
+
+<section class="slide" id="pieces3">
+  <h2>Pieces of the puzzle</h2>
+  <ul>
+    <li>
+      <h3>CGI::Compile</h3>
+    </li>
+    <li>
+      <h3>CGI::Emulate::PSGI</h3>
+    </li>
+    <li>
+      <h3>Plack::App::WrapCGI</h3>
+    </li>
+  </ul>
+</section>
+
+<section class="slide" id="plack-app-wrapcgi">
+  <h2>Plack::App::WrapCGI</h2>
+  <p>Principally a convenience function to combine CGI::Compile and CGI::Emulate::PSGI.</p>
+  <p><code><pre>
+my $app = Plack::App::WrapCGI-&gt;new(script =&gt; './my-script.pl')-&gt;to_app;
+builder {
+    mount '/' =&gt; $app;
+};
+</pre></code></p>
+</section>
+
+<section class="slide" id="pieces4">
+  <h2>Pieces of the puzzle</h2>
+  <ul>
+    <li>
+      <h3>CGI::Compile</h3>
+    </li>
+    <li>
+      <h3>CGI::Emulate::PSGI</h3>
+    </li>
+    <li>
+      <h3>Plack::App::WrapCGI</h3>
+    </li>
+    <li>
+      <h3>Plack::App::CGIBin</h3>
+    </li>
+  </ul>
+</section>
+
+<section class="slide" id="plack-app-cgibin">
+  <h2>Plack::App::CGIBin</h2>
+  <p>Automatically route requests to a whole directory tree of CGI scripts.</p>
+  <p><code><pre>
+my $app = Plack::App::CGIBin-&gt;new(root =&gt; './cgi-scripts/')-&gt;to_app;
+builder {
+    mount '/cgi-bin/' =&gt; $app;
+};
+</pre></code></p>
+</section>
+
+<section class="slide" id="caveats">
+  <h1>What could go wrong?</h1>
+</section>
+
+<section class="slide" id="variable-scope">
+  <h2>Variable Scope</h2>
+  <p>CGI::Compile turns scripts into a dynamically named package, changing the scope. Globals declared with "my" in compiled scripts will not be accessible to subroutines declared in the same. Must use "our" to declare them (or pass in as a parameter, of course).</p>
+  <p><code><pre>
+my $query = CGI-&gt;new();
+
+sub get_foo {
+    return $query-&gt;param('foo');
+}
+</pre></code></p>
+</section>
+
+<section class="slide" id="variable-mutation">
+  <h2>Variable Mutation</h2>
+  <p>The value of package global variables brought in through use/require will maintain state between invocations. This is probably not what you want if the application mutates them.</p>
+  <p><code><pre>
+package Canned::Pizza;
+
+our $user;
+
+sub initialize {
+    my $query = shift;
+    $user //= $query-&gt;param('userid');
+}
+
+1;
+</pre></code></p>
+</section>
+
+<section class="slide" id="variable-mutation">
+  <h1>Fin</h1>
 </section>
 
 <section class="slide" id="themes">
