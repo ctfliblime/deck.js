@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="../extensions/hash/deck.hash.css">
 	
   <!-- Style theme. More available in /themes/style/ or create your own. -->
-  <link rel="stylesheet" href="../themes/style/web-2.0.css">
+  <link rel="stylesheet" href="../themes/style/swiss.css">
 	
   <!-- Transition theme. More available in /themes/transition/ or create your own. -->
   <link rel="stylesheet" href="../themes/transition/horizontal-slide.css">
@@ -34,7 +34,7 @@
 
 <!-- Begin slides -->
 <section class="slide" id="title-slide">
-  <h1>Converting from CGI to PSGI</h1>
+  <h1>Modernizing CGI with Plack</h1>
 </section>
 
 <section class="slide" id="why-would-i">
@@ -70,7 +70,7 @@
 
 <section class="slide" id="cgi-compile">
   <h2>CGI::Compile</h2>
-  <p>Loads contents of a Perl script into an eval()ed subroutine. Hand it a filename; get back a coderef.</p>
+  <p>Loads contents of a Perl script into a subroutine. Hand it a filename; get back a coderef.</p>
   <p><code><pre>
 my $cgi = CGI::Compile-&gt;compile('./my-script.pl');<br/>
 $cgi-&gt;();
@@ -91,7 +91,10 @@ $cgi-&gt;();
 
 <section class="slide" id="cgi-emulate-psgi">
   <h2>CGI::Emulate::PSGI</h2>
-  <p>Converts the PSGI input environment ($env) into a CGI-compliant one (%ENV, &lt;STDIN&gt;, etc.). Hand it a coderef; get back a PSGI app.</p>
+
+  <p>Converts the PSGI input environment (<code>$env</code>) into a
+    CGI-compliant one (<code>%ENV</code>, <code>&lt;STDIN&gt;</code>,
+    etc.). Hand it a coderef; get back a PSGI app.</p>
   <p><code><pre>
 my $cgi = CGI::Compile-&gt;compile('./my-script.pl');
 my $app = CGI::Emulate::PSGI-&gt;handler($cgi);
@@ -162,10 +165,14 @@ builder {
 
 <section class="slide" id="variable-scope">
   <h2>Variable Scope</h2>
-  <p>CGI::Compile turns script contents into a dynamically named package. This changes the scope. Globals declared with "my" in compiled scripts will not be accessible to subroutines declared in the same. Must use "our" to declare them (or pass in as a parameter, of course).</p>
+  <p>CGI::Compile turns script contents into a dynamically named
+  package. This changes the scope. Globals declared
+  with <code>my</code> in compiled scripts will not be accessible to
+  subroutines declared in the same. Must use <code>our</code> to
+  declare them (or pass in as a parameter, of course).</p>
   <p><code><pre>
 #!/usr/bin/env perl
-
+use CGI;
 my $query = CGI-&gt;new();
 
 sub get_foo {
@@ -178,9 +185,12 @@ sub get_foo {
 
 <section class="slide" id="variable-mutation">
   <h2>Variable Mutation</h2>
-  <p>The value of package global variables brought in through use/require will maintain state between invocations. This is probably not what you want if the application mutates them.</p>
+  <p>The value of package globals brought in through
+    <code>use</code>/<code>require</code> will maintain state between
+    invocations. This is probably not what you want if the application
+    mutates those variables.</p>
   <p><code><pre>
-package Canned::Pizza;
+package Cup::Of::Pizza;
 
 our $user;
 
